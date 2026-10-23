@@ -21,7 +21,7 @@ export const contactSchema = z.object({
     .email("That email address doesn't look right.")
     .max(255, "Email is too long."),
   phone: z.string().trim().max(30, "Phone number is too long.").optional(),
-  topic: z.enum(["Skin care", "Hair restoration", "Aesthetics", "General question"]),
+  topic: z.string().trim().min(1).max(60),
   message: z
     .string()
     .trim()
@@ -46,7 +46,7 @@ export async function sendToWeb3Forms(
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
       access_key: WEB3FORMS_ACCESS_KEY,
-      from_name: "Dr. Sehar Ikram — Portfolio contact form",
+      from_name: "Dr. Sehar Ikram — Website contact form",
       ...data,
     }),
   });

@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { contactSchema, sendToWeb3Forms, type ContactInput } from "@/lib/web3forms";
 import portrait from "@/assets/portrait.jpg";
 import clinic from "@/assets/clinic.jpg";
 import before from "@/assets/scalp-before.jpg";
@@ -313,32 +314,101 @@ function Cta({ onBook }: { onBook: () => void }) {
       </div>
       <div className="mx-auto mt-8 flex max-w-7xl flex-wrap justify-between gap-4 text-sm text-plum/60">
         <span>© {new Date().getFullYear()} Dr. Sehar Ikram · Lahore</span>
-        <Link to="/monograph" className="hover:text-rose">View the monograph edition →</Link>
+        {/* <Link to="/monograph" className="hover:text-rose">View the monograph edition →</Link> */}
+        <a href="https://instagram.com/dr.seharikram" target="_blank" rel="noreferrer">Instagram @dr.seharikram →</a>
       </div>
     </footer>
   );
 }
 
+type FormStatus = "idle" | "loading" | "success" | "error";
+
+const topics = ["Skin care", "Hair restoration", "Aesthetics", "Dermatology", "General question"];
+const fieldClass = "w-full rounded-2xl bg-sand px-5 py-4 outline-none focus:ring-2 focus:ring-rose";
+
 function Booking({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [sent, setSent] = useState(false);
+  const [status, setStatus] = useState<FormStatus>("idle");
+  const [errors, setErrors] = useState<Partial<Record<keyof ContactInput, string>>>({});
+  const [serverError, setServerError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (status === "loading") return;
+    setServerError("");
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    const phone = String(fd.get("phone") ?? "").trim();
+    const candidate = {
+      name: String(fd.get("name") ?? ""),
+      email: String(fd.get("email") ?? ""),
+      ...(phone ? { phone } : {}),
+      topic: String(fd.get("topic") ?? "General question"),
+      message: String(fd.get("message") ?? ""),
+    };
+    const parsed = contactSchema.safeParse(candidate);
+    if (!parsed.success) {
+      const fieldErrors: Partial<Record<keyof ContactInput, string>> = {};
+      for (const [key, msgs] of Object.entries(parsed.error.flatten().fieldErrors)) {
+        const first = msgs?.[0];
+        if (first) fieldErrors[key as keyof ContactInput] = first;
+      }
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
+    setStatus("loading");
+    try {
+      await sendToWeb3Forms(parsed.data);
+      setStatus("success");
+      form.reset();
+    } catch {
+      setServerError("The message didn't go through. Check your connection and try again — or reach Dr. Sehar on WhatsApp.");
+      setStatus("error");
+    }
+  }
+
   return (
     <>
       <div onClick={onClose} className={`fixed inset-0 z-50 bg-plum/40 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"}`} />
       <aside className={`fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-cream p-8 transition-transform duration-500 ${open ? "translate-x-0" : "translate-x-full"}`}>
         <div className="flex justify-end"><button onClick={onClose} className="rounded-full bg-sand px-4 py-2 text-sm font-semibold">Close ✕</button></div>
-        {sent ? (
-          <p className="serif2 mt-20 text-4xl">Thank you! We'll be in touch soon.</p>
+        {status === "success" ? (
+          <div role="status" aria-live="polite">
+            <p className="serif2 mt-20 text-4xl">Thank you! We'll be in touch soon.</p>
+            <button onClick={() => setStatus("idle")} className="mt-8 rounded-full bg-plum px-6 py-3 text-sm font-semibold text-cream transition hover:bg-rose">Send another message</button>
+          </div>
         ) : (
-          <form onSubmit={(e) => { e.preventDefault(); setSent(true); }} className="mt-8 space-y-5">
-            <h3 className="serif2 text-4xl">Book a visit</h3>
-            {["Your name", "Phone or email"].map((l) => (
-              <input key={l} required placeholder={l} className="w-full rounded-2xl bg-sand px-5 py-4 outline-none focus:ring-2 focus:ring-rose" />
-            ))}
-            <select className="w-full rounded-2xl bg-sand px-5 py-4 outline-none">
-              {services.map((s) => <option key={s.t}>{s.t}</option>)}
-            </select>
-            <textarea rows={4} placeholder="Tell us a little about your concern" className="w-full rounded-2xl bg-sand px-5 py-4 outline-none focus:ring-2 focus:ring-rose" />
-            <button className="w-full rounded-full bg-plum py-4 font-semibold text-cream transition hover:bg-rose">Send request</button>
+          <form onSubmit={handleSubmit} noValidate className="mt-8">
+            <fieldset disabled={status === "loading"} className={`space-y-5 transition ${status === "loading" ? "opacity-60" : ""}`}>
+              <h3 className="serif2 text-4xl">Book a visit</h3>
+              <div>
+                <input name="name" aria-label="Your name" placeholder="Your name *" className={fieldClass} aria-invalid={!!errors.name} />
+                {errors.name && <p className="mt-2 text-sm text-rose">{errors.name}</p>}
+              </div>
+              <div>
+                <input name="email" type="email" aria-label="Email" placeholder="Email *" className={fieldClass} aria-invalid={!!errors.email} />
+                {errors.email && <p className="mt-2 text-sm text-rose">{errors.email}</p>}
+              </div>
+              <div>
+                <input name="phone" type="tel" aria-label="Phone (optional)" placeholder="Phone (optional)" className={fieldClass} aria-invalid={!!errors.phone} />
+                {errors.phone && <p className="mt-2 text-sm text-rose">{errors.phone}</p>}
+              </div>
+              <select name="topic" aria-label="What's it about?" defaultValue="General question" className={fieldClass}>
+                {topics.map((t) => <option key={t}>{t}</option>)}
+              </select>
+              <div>
+                <textarea name="message" rows={4} aria-label="Your message" placeholder="Tell us a little about your concern *" className={fieldClass} aria-invalid={!!errors.message} />
+                {errors.message && <p className="mt-2 text-sm text-rose">{errors.message}</p>}
+              </div>
+              {/* Honeypot for spam bots — hidden from humans. */}
+              <input type="checkbox" name="botcheck" className="hidden" tabIndex={-1} autoComplete="off" aria-hidden />
+              {status === "error" && serverError && (
+                <p role="alert" className="rounded-2xl border border-rose/40 bg-rose/10 px-5 py-4 text-sm">{serverError}</p>
+              )}
+              <button type="submit" className="w-full rounded-full bg-plum py-4 font-semibold text-cream transition hover:bg-rose disabled:cursor-not-allowed">
+                {status === "loading" ? "Sending…" : "Send request"}
+              </button>
+            </fieldset>
           </form>
         )}
       </aside>
