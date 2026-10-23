@@ -7,7 +7,7 @@ export const WEB3FORMS_ENDPOINT = "https://api.web3forms.com/submit";
  * Replace this string with your real access key from https://web3forms.com
  * (it is passed in the form payload below, so there is a single place to swap it).
  */
-export const WEB3FORMS_ACCESS_KEY = "af4f1d9c-4bb1-4493-9481-c4238959425a";
+export const WEB3FORMS_ACCESS_KEY = "f5f2d92b-ce51-4d67-b78e-62683d8821e2";
 
 export const contactSchema = z.object({
   name: z
